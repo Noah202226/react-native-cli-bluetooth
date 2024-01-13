@@ -1,198 +1,59 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   Button,
-  PermissionsAndroid,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
-  ToastAndroid,
   View,
-  Platform,
-  FlatList,
-  Pressable,
 } from 'react-native';
 
-import BleManager from 'react-native-ble-manager';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import Settings from './components/Settings';
+import Main from './tabScreen/Main';
+import Products from './tabScreen/Products';
 
-const requestCameraPermission = async () => {
-  if (Platform.OS === 'android') {
-    try {
-      await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      );
-      await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-      );
-      await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      );
-      BleManager.start()
-        .then(() => {
-          const devices = BleManager.scan([], 5, true)
-            .then(() => console.log('Scan started'))
-            .catch(e => console.log(e));
-
-          if (devices) {
-            console.log('Available devices', devices);
-          }
-        })
-        .catch(e => console.log(e));
-    } catch (error) {
-      ToastAndroid.show(
-        error === null ? 'Nothing' : ' Cool',
-        ToastAndroid.LONG,
-      );
-    }
-  }
-  try {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-      {
-        title: 'Cool Photo App Camera Permission',
-        message:
-          'Cool Photo App needs access to your camera ' +
-          'so you can take awesome pictures.',
-        buttonNeutral: 'Ask Me Later',
-        buttonNegative: 'Cancel',
-        buttonPositive: 'OK',
-      },
-    );
-    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-      console.log('You can use the camera');
-      ToastAndroid.show('You can use camera', ToastAndroid.LONG);
-    } else {
-      ToastAndroid.show(`Access denied ${granted}`, ToastAndroid.LONG);
-    }
-  } catch (err) {
-    console.warn(err);
-  }
-};
-
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 const App = () => {
-  const [devices, setDevices] = useState([]);
-  const [connectedDevice, setConnectedDevice] = useState(null);
-  const [serviceID, setServiceID] = useState(
-    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-  );
-  const [characteristicID, setCharacteristicID] = useState(
-    '49535343-6daa-4d02-abf6-19569aca69fe',
-  );
-
-  const handleDeviceDiscovery = useCallback(data => {
-    // Update the list of devices in the state
-    setDevices(prevDevices => {
-      const isNewDevice = !prevDevices.some(device => device.id === data.id);
-      if (isNewDevice) {
-        return [...prevDevices, data];
-      }
-      return prevDevices;
-    });
-  }, []);
-
-  const connectToDevice = async device => {
-    try {
-      // Connect to the selected device
-      const connected = await BleManager.connect(device.id);
-
-      // Update the connected device state
-      setConnectedDevice(device);
-
-      console.log('Connected to device:', device);
-    } catch (error) {
-      console.error('Connection error', error);
-    }
-  };
-
-  const printToThermalPrinter = async () => {
-    if (!connectedDevice) {
-      console.warn('Not connected to any device.');
-      return;
-    }
-
-    console.log('Service IDS: ', connectedDevice.advertising.serviceUUIDs);
-    console.log('IDS: ', serviceID, characteristicID);
-
-    try {
-      // Implement your logic to send print data to the thermal printer
-      // You may use BleManager.write() or other relevant methods
-
-      // For example:
-      const printData =
-        'Hello, Thermal Printer!\n This is coming from react native app\n And that was a cool, We can start Developing Android POS';
-      await BleManager.write(
-        connectedDevice.id,
-        serviceID,
-        characteristicID,
-        stringToBytes(printData),
-      );
-
-      console.log('Print data sent to the thermal printer:', printData);
-    } catch (error) {
-      console.error('Print error', error);
-    }
-  };
-
-  useEffect(() => {
-    // Start Bluetooth scanning
-    BleManager.start({showAlert: false});
-
-    // Listen to device discovery events
-    const discoverPeripheralSubscription = BleManager.addListener(
-      'BleManagerDiscoverPeripheral',
-      handleDeviceDiscovery,
+  const HomeScreen = ({navigation}) => {
+    return (
+      <Tab.Navigator screenOptions={{headerShown: false}}>
+        <Tab.Screen name="Main" component={Main} />
+        <Tab.Screen name="Products" component={Products} />
+      </Tab.Navigator>
     );
-
-    // Start scanning
-    BleManager.scan([], 5, true)
-      .then(() => {
-        console.log('Scanning started');
-      })
-      .catch(error => {
-        console.error('Scan error', error);
-      });
-
-    // Clean up subscriptions and stop scanning on component unmount
-    return () => {
-      discoverPeripheralSubscription.remove();
-      BleManager.stopScan();
-    };
-  }, [handleDeviceDiscovery]);
-
-  // string to bytes
-  const stringToBytes = str => {
-    const bytes = [];
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      bytes.push(charCode & 0xff); // Low byte
-      bytes.push((charCode >> 8) & 0xff); // High byte
-    }
-    return bytes;
+  };
+  const ProfileScreen = ({navigation, route}) => {
+    return (
+      <Text style={{color: 'black'}}>
+        This is {route.params.name}'s profile
+      </Text>
+    );
   };
 
-  console.log(devices);
   return (
-    <View>
-      <Text>Available Devices:</Text>
-      <FlatList
-        data={devices}
-        keyExtractor={item => item.id}
-        renderItem={({item}) => (
-          <Pressable onPress={() => connectToDevice(item)}>
-            <Text>{item.name || 'Unknown Device'}</Text>
-            <Text>{item.id}</Text>
-          </Pressable>
-        )}
-      />
-      {connectedDevice && (
-        <View>
-          <Text>Connected to: {connectedDevice.name || 'Unknown Device'}</Text>
-          <Button
-            title="Print to Thermal Printer"
-            onPress={printToThermalPrinter}
-          />
-        </View>
-      )}
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={({route, navigation}) => ({
+            title: 'KAYCEE MINI STORE',
+            headerRight: () => (
+              <Pressable
+                onPress={() => navigation.push('Settings', {name: 'Jane'})}>
+                <Text style={{color: 'black'}}>Settings</Text>
+              </Pressable>
+            ),
+          })}
+        />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Settings" component={Settings} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 };
 
