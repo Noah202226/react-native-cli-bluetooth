@@ -9,8 +9,18 @@ import {
 } from 'react-native';
 import React, {useCallback, useEffect, useState} from 'react';
 
-import BleManager from 'react-native-ble-manager';
+// import BleManager from 'react-native-ble-manager';
+import usePrintStore from '../zustand/printSettingStore';
 const Settings = () => {
+  const printerName = usePrintStore(state => state.printerName);
+  const setPrinterName = usePrintStore(state => state.setPrinterName);
+  const printerServiceID = usePrintStore(state => state.printerServiceID);
+  const printerCharacteristicID = usePrintStore(
+    state => state.printerCharacteristicID,
+  );
+
+  const BleManager = usePrintStore(state => state.bluetoothManager);
+
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
       try {
@@ -41,37 +51,9 @@ const Settings = () => {
         );
       }
     }
-    try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.CAMERA,
-        {
-          title: 'Cool Photo App Camera Permission',
-          message:
-            'Cool Photo App needs access to your camera ' +
-            'so you can take awesome pictures.',
-          buttonNeutral: 'Ask Me Later',
-          buttonNegative: 'Cancel',
-          buttonPositive: 'OK',
-        },
-      );
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        console.log('You can use the camera');
-        ToastAndroid.show('You can use camera', ToastAndroid.LONG);
-      } else {
-        ToastAndroid.show(`Access denied ${granted}`, ToastAndroid.LONG);
-      }
-    } catch (err) {
-      console.warn(err);
-    }
   };
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
-  const [serviceID, setServiceID] = useState(
-    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-  );
-  const [characteristicID, setCharacteristicID] = useState(
-    '49535343-6daa-4d02-abf6-19569aca69fe',
-  );
 
   const handleDeviceDiscovery = useCallback(data => {
     // Update the list of devices in the state
@@ -87,37 +69,35 @@ const Settings = () => {
   const connectToDevice = async device => {
     try {
       // Connect to the selected device
-      const connected = await BleManager.connect(device.id);
+      await BleManager.connect(device.id);
 
       // Update the connected device state
       setConnectedDevice(device);
 
       console.log('Connected to device:', device);
+      setPrinterName(device);
     } catch (error) {
       console.error('Connection error', error);
     }
   };
 
   const printToThermalPrinter = async () => {
-    if (!connectedDevice) {
+    if (!printerName) {
       console.warn('Not connected to any device.');
       return;
     }
-
-    console.log('Service IDS: ', connectedDevice.advertising.serviceUUIDs);
-    console.log('IDS: ', serviceID, characteristicID);
 
     try {
       // Implement your logic to send print data to the thermal printer
       // You may use BleManager.write() or other relevant methods
       const dateNow = new Date().toLocaleString();
-      console.log(dateNow);
+
       // For example:
-      const printData = `      KAYCEE MINI STORE\n Date: ${dateNow}\n\n--------------------------------\n\n--------------------------------\n\nAnd that was a cool, We can start Developing Android POS\n\n\n`;
+      const printData = `      KAYCEE MINI STORE\n Date: ${dateNow}\n\n--------------------------------\n\nThis is test print to connected Printer, It works!\n\n--------------------------------\n\nAnd that was a cool, We can start Developing Android POS\n\n\n`;
       await BleManager.write(
-        connectedDevice.id,
-        serviceID,
-        characteristicID,
+        printerName.id,
+        printerServiceID,
+        printerCharacteristicID,
         stringToBytes(printData),
       );
 
@@ -166,6 +146,7 @@ const Settings = () => {
 
   return (
     <View style={{flex: 1, backgroundColor: 'grey'}}>
+      <Text>Active printer: {printerName.name}</Text>
       <Text>Available Devices:</Text>
       <FlatList
         data={devices}
@@ -177,12 +158,13 @@ const Settings = () => {
           </Pressable>
         )}
       />
-      {connectedDevice && (
+
+      {printerName && (
         <View>
-          <Text>Connected to: {connectedDevice.name || 'Unknown Device'}</Text>
+          <Text>Connected to: {printerName.name || 'Unknown Device'}</Text>
           <Button
             title="Print to Thermal Printer"
-            onPress={printToThermalPrinter}
+            onPress={() => printToThermalPrinter(printerName)}
           />
         </View>
       )}
